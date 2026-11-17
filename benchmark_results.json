@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-11-17 18:07:00",
+  "platform": "Windows 11 (AMD64)",
+  "python_version": "3.14.7",
+  "torch_version": "2.14.1+cpu",
+  "dataset": "tgbl-wiki",
+  "epochs": 5,
+  "batch_size": 2048,
+  "hidden_dim": 64,
+  "device": "cpu",
+  "models": {
+    "stateless": {
+      "mrr_mean": 0.8981209651706201,
+      "mrr_std": 0.00421912106227381,
+      "val_mrr_mean": 0.8649357887361478,
+      "val_mrr_std": 0.005211275409495175,
+      "edges_per_sec": 21234.404390715285,
+      "peak_ram_mb": 631.5501941680908,
+      "seeds": [
+        {
+          "seed": 0,
+          "final_train_loss": 0.061674000057219354,
+          "val_mrr": 0.8702081429825326,
+          "test_mrr": 0.8947792582849287,
+          "avg_epoch_sec": 5.112286567687988,
+          "throughput_edges_sec": 21562.171552885386,
+          "peak_ram_mb": 674.4883985519409
+        },
+        {
+          "seed": 1,
+          "final_train_loss": 0.0659137766773778,
+          "val_mrr": 0.8697821510608964,
+          "test_mrr": 0.9039136469597627,
+          "avg_epoch_sec": 5.412978744506836,
+          "throughput_edges_sec": 20364.388112897163,
+          "peak_ram_mb": 620.8164138793945
+        },
+        {
+          "seed": 2,
+          "final_train_loss": 0.07012362740244027,
+          "val_mrr": 0.8576424748504039,
+          "test_mrr": 0.8982658920691186,
+          "avg_epoch_sec": 5.110635280609131,
+          "throughput_edges_sec": 21569.13846273561,
+          "peak_ram_mb": 620.8212995529175
+        },
+        {
+          "seed": 3,
+          "final_train_loss": 0.06284229233171101,
+          "val_mrr": 0.8638065842091642,
+          "test_mrr": 0.8934251174169028,
+          "avg_epoch_sec": 5.176522064208984,
+          "throughput_edges_sec": 21294.606423520454,
+          "peak_ram_mb": 620.8090467453003
+        },
+        {
+          "seed": 4,
+          "final_train_loss": 0.057636759882033976,
+          "val_mrr": 0.8632395905777426,
+          "test_mrr": 0.9002209111223882,
+          "avg_epoch_sec": 5.155432462692261,
+          "throughput_edges_sec": 21381.717401537804,
+          "peak_ram_mb": 620.8158121109009
+        }
+      ]
+    },
+    "stateful": {
+      "mrr_mean": 0.393351897887438,
+      "mrr_std": 0.0339637952883961,
+      "val_mrr_mean": 0.41653426996085025,
+      "val_mrr_std": 0.02570756817098303,
+      "edges_per_sec": 10539.447631696521,
+      "peak_ram_mb": 588.5404863357544,
+      "seeds": [
+        {
+          "seed": 0,
+          "final_train_loss": 0.21056690398189756,
+          "val_mrr": 0.435582346321647,
+          "test_mrr": 0.4123473886692246,
+          "avg_epoch_sec": 9.477590990066528,
+          "throughput_edges_sec": 11630.80366261155,
+          "peak_ram_mb": 588.5227117538452
+        },
+        {
+          "seed": 1,
+          "final_train_loss": 0.227196515986213,
+          "val_mrr": 0.3761275462493474,
+          "test_mrr": 0.3466013490951729,
+          "avg_epoch_sec": 9.442935609817505,
+          "throughput_edges_sec": 11673.48847379574,
+          "peak_ram_mb": 588.5177412033081
+        },
+        {
+          "seed": 2,
+          "final_train_loss": 0.21737927501952206,
+          "val_mrr": 0.4361831791762796,
+          "test_mrr": 0.4272508261485625,
+          "avg_epoch_sec": 9.53030972480774,
+          "throughput_edges_sec": 11566.4656430905,
+          "peak_ram_mb": 588.6137542724609
+        },
+        {
+          "seed": 3,
+          "final_train_loss": 0.2061782575867794,
+          "val_mrr": 0.42880059106836277,
+          "test_mrr": 0.4114896795337759,
+          "avg_epoch_sec": 12.533583211898804,
+          "throughput_edges_sec": 8794.931037386885,
+          "peak_ram_mb": 588.5262975692749
+        },
+        {
+          "seed": 4,
+          "final_train_loss": 0.2154298788971371,
+          "val_mrr": 0.4059776869886145,
+          "test_mrr": 0.369070245990454,
+          "avg_epoch_sec": 12.205214834213256,
+          "throughput_edges_sec": 9031.549341597927,
+          "peak_ram_mb": 588.5219268798828
+        }
+      ]
+    }
+  }
+}
