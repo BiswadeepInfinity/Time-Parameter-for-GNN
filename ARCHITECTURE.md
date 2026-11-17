@@ -151,27 +151,73 @@ Mean Reciprocal Rank (MRR) measures how many positions down a user has to look b
 
 ---
 
-## 5. Practical Uses & Industry Applications
+## 5. Why RT-GNN is Novel Compared to Other Algorithms
 
-### 5.1 Real-Time Financial Fraud Detection
+Existing temporal graph models fall into three broad categories, each with fundamental limitations that RT-GNN overcomes:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    HOW RT-GNN COMPARES TO EXISTING ALGORITHMS               │
+├───────────────────────┬──────────────────────────┬──────────────────────────┤
+│ Existing Model Type   │ Major Flaw / Bottleneck  │ RT-GNN's Novel Solution  │
+├───────────────────────┼──────────────────────────┼──────────────────────────┤
+│ Recurrent Models      │ Slow step-by-step loops  │ Instantaneous continuous │
+│ (TGN, DyRep, TCL)     │ (O(K) sequential bottleneck)│ rotation jumps (O(1))    │
+├───────────────────────┼──────────────────────────┼──────────────────────────┤
+│ Transformer Models    │ Heavy quadratic lag      │ Compact Fourier harmonics│
+│ (DyGFormer, TGAT)     │ (O(K^2) attention matrices)│ (26x faster, higher MRR) │
+├───────────────────────┼──────────────────────────┼──────────────────────────┤
+│ Memory Table Lookups  │ Pure static memorization │ Learned continuous-time  │
+│ (EdgeBank)            │ (Cannot generalize)      │ geometric embeddings     │
+├───────────────────────┼──────────────────────────┼──────────────────────────┤
+│ Fixed MLP Mixers      │ Blind to continuous time │ Complex rotation-decay   │
+│ (GraphMixer)          │ and periodic cycles      │ semigroup algebraic math │
+└───────────────────────┴──────────────────────────┴──────────────────────────┘
+```
+
+### 5.1 Novelty Over Recurrent Memory Models (TGN, DyRep, TCL)
+* **The Traditional Bottleneck**: Models like TGN use Recurrent Neural Networks (like GRUs) to maintain node memory. Because recurrent loops are strictly sequential, they cannot process future events until past events are computed one by one. This causes a massive computational bottleneck ($O(K)$ unrolling).
+* **RT-GNN's Breakthrough**: 
+  * In the **Stateless** version, RT-GNN completely eliminates recurrent loops. It computes continuous-time jumps analytically in closed form ($O(1)$), allowing events to be processed completely in parallel.
+  * In the **Stateful** version, it replaces sequential loops with an **exact associative prefix scan** ($O(\log K)$), computing entire history trees simultaneously.
+
+### 5.2 Novelty Over Transformer & Attention Models (DyGFormer, TGAT)
+* **The Traditional Bottleneck**: State-of-the-art models like DyGFormer save large patches of past events and compare every historical event against every other event using self-attention. This requires quadratic computation ($O(K^2)$), causing them to run at only $\approx 800$ edges/sec while requiring massive GPU video memory (VRAM).
+* **RT-GNN's Breakthrough**: RT-GNN achieves **higher accuracy than DyGFormer (`0.8981` vs `0.7980`)** without using any quadratic self-attention matrices. By combining query-time rotation, multi-scale harmonic clocks, and popularity priors, it captures temporal nuances with simple element-wise arithmetic, running **$26\times$ faster on standard CPUs**.
+
+### 5.3 Novelty Over Memory Table Lookups (EdgeBank)
+* **The Traditional Bottleneck**: EdgeBank achieves reasonable scores on Wikipedia simply by keeping a giant dictionary of past edges and checking if a connection happened before. However, it has zero neural parameters—it cannot generalize to unseen interactions, cannot learn semantic patterns, and fails completely when network dynamics shift.
+* **RT-GNN's Breakthrough**: RT-GNN is a fully differentiable, learning neural network. It generalizes across new nodes, integrates rich interaction features ($172$ dimensions), and models continuous decay and cyclic rhythm geometrically.
+
+### 5.4 The Conceptual Paradigm Shift: Breaking the "Memory Assumption"
+For over five years, the central belief in temporal graph research has been:
+> *"To achieve top accuracy on dynamic graphs, a model must maintain heavy historical memory diaries or deep attention buffers."*
+
+RT-GNN disproves this assumption. It demonstrates that **continuous geometric rotation, coupled with destination popularity base rates and multi-frequency harmonic clocks, captures the true temporal dynamics of graphs better than heavy memory buffers**—while using zero persistent memory and running at full line-rate streaming speed.
+
+---
+
+## 6. Practical Uses & Industry Applications
+
+### 6.1 Real-Time Financial Fraud Detection
 * **Scenario**: Global credit card processing networks (Visa, Mastercard, Stripe) process tens of thousands of swipes every second and must authorize or flag transactions in under $10$ milliseconds.
 * **How RT-GNN Helps**: With a processing latency of just **$0.047$ milliseconds per transaction**, RT-GNN can evaluate whether an incoming card swipe matches the user's continuous behavioral rhythm instantly, flagging fraud before the payment clears.
 
-### 5.2 Social Network Recommendations & Feed Ranking
+### 6.2 Social Network Recommendations & Feed Ranking
 * **Scenario**: Platforms like X (Twitter), Reddit, Instagram, and YouTube stream millions of posts, likes, and video views. Users' immediate interests drift rapidly, while overall habits follow daily and weekly cycles.
 * **How RT-GNN Helps**: The continuous rotation operator naturally captures circadian and weekly activity habits, ensuring that recommended items reflect what the user cares about right now rather than weeks ago.
 
-### 5.3 Cybersecurity & Network Intrusion Prevention
+### 6.3 Cybersecurity & Network Intrusion Prevention
 * **Scenario**: Enterprise networks monitor continuous communication streams between internal IP addresses, servers, and external domains.
 * **How RT-GNN Helps**: Hackers attempting lateral movement often initiate sudden, unusual connections. RT-GNN's popularity priors and continuous time decay instantly detect abnormal connection spikes without having to save massive log buffers.
 
-### 5.4 E-Commerce Dynamic Link Prediction
+### 6.4 E-Commerce Dynamic Link Prediction
 * **Scenario**: Recommending companion items or predicting repeat purchases on retail platforms (such as Amazon).
 * **How RT-GNN Helps**: The model predicts which product category a buyer is most likely to click next based on the exact continuous time gap since their last interaction.
 
 ---
 
-## 6. Key Scientific Conclusions
+## 7. Key Scientific Conclusions
 
 1. **Recurrent Memory is Not Mandatory for High Accuracy**: For years, temporal graph research assumed that complex memory diaries (like RNNs or GRUs) were necessary to achieve good performance. RT-GNN proves that closed-form continuous rotation, combined with popularity priors and multi-scale frequency encodings, delivers higher accuracy than complex memory models.
 2. **Superior Speed and Accuracy Simultaneously**: Rather than sacrificing speed to get accuracy (or sacrificing accuracy to get speed), Stateless RT-GNN achieves both: the highest accuracy score on the leaderboard ($0.8981$) while operating over $26\times$ faster than the top transformer baseline.
