@@ -317,20 +317,32 @@ class TemporalBatch:
 
         return combined_src, combined_dst, labels
 
-    def link_prediction_inputs(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Optional[Tensor]]:
+    def link_prediction_inputs(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Optional[Tensor]]:
         """Constructs combined prediction pairs, temporal deltas, labels, and edge features.
-        
+
+        DESIGN NOTE — why delta_t_dst is NOT returned:
+        At prediction time the model does NOT know when the destination node
+        will next be touched — that is literally what link prediction is trying
+        to discover.  Exposing the *real* delta_t_dst for positive destinations
+        while using 0.0 for every negative destination creates a perfect binary
+        signal (real > 0  ↔  positive) that bypasses all learned representations
+        and inflates MRR to near-1.0 (label leakage).  Only delta_t_src is
+        legitimate: it describes how recently the *source* acted, which is
+        causal information known before the edge is observed.
+
         Returns:
-            combined_src: Tensor of shape [B * (1 + num_negatives)]
-            combined_dst: Tensor of shape [B * (1 + num_negatives)]
-            combined_dt_src: Tensor of shape [B * (1 + num_negatives)]
-            combined_dt_dst: Tensor of shape [B * (1 + num_negatives)]
-            labels: Tensor of shape [B * (1 + num_negatives)]
-            combined_efeat: Optional Tensor of shape [B * (1 + num_negatives), feat_dim]
+            combined_src:    LongTensor [B * (1 + num_negatives)]
+            combined_dst:    LongTensor [B * (1 + num_negatives)]
+            combined_dt_src: FloatTensor [B * (1 + num_negatives)]  — source elapsed time
+            labels:          FloatTensor [B * (1 + num_negatives)]  — 1=positive, 0=negative
+            combined_efeat:  Optional FloatTensor [B, feat_dim] padded with zeros for negatives
+                             (only positives have observed edge features; negatives get zeros)
         """
         B = self.src.size(0)
         if self.neg_dst is None:
-            raise ValueError("Cannot call link_prediction_inputs() on a batch without neg_dst (e.g. val/test).")
+            raise ValueError(
+                "Cannot call link_prediction_inputs() on a batch without neg_dst (e.g. val/test)."
+            )
 
         neg_flat = self.neg_dst.view(-1)
         num_negs = neg_flat.size(0) // B
@@ -340,31 +352,32 @@ class TemporalBatch:
             combined_src = torch.cat([self.src, self.src], dim=0)
             combined_dst = torch.cat([self.dst, neg_flat], dim=0)
             combined_dt_src = torch.cat([self.delta_t_src, self.delta_t_src], dim=0)
-            combined_dt_dst = torch.cat([self.delta_t_dst, torch.zeros_like(self.delta_t_dst)], dim=0)
             labels = torch.cat([
                 torch.ones(B, dtype=torch.float32, device=dev),
                 torch.zeros(B, dtype=torch.float32, device=dev),
             ], dim=0)
+            # Edge features: positives get real features; negatives get zeros
+            # (a negative candidate has no observed interaction features)
             combined_efeat = None
             if self.edge_feat is not None:
-                combined_efeat = torch.cat([self.edge_feat, self.edge_feat], dim=0)
+                neg_efeat = torch.zeros_like(self.edge_feat)
+                combined_efeat = torch.cat([self.edge_feat, neg_efeat], dim=0)
         else:
             expanded_src = self.src.repeat_interleave(num_negs)
             combined_src = torch.cat([self.src, expanded_src], dim=0)
             combined_dst = torch.cat([self.dst, neg_flat], dim=0)
             expanded_dt_src = self.delta_t_src.repeat_interleave(num_negs)
             combined_dt_src = torch.cat([self.delta_t_src, expanded_dt_src], dim=0)
-            combined_dt_dst = torch.cat([self.delta_t_dst, torch.zeros(B * num_negs, dtype=torch.float32, device=dev)], dim=0)
             labels = torch.cat([
                 torch.ones(B, dtype=torch.float32, device=dev),
                 torch.zeros(B * num_negs, dtype=torch.float32, device=dev),
             ], dim=0)
             combined_efeat = None
             if self.edge_feat is not None:
-                expanded_efeat = self.edge_feat.repeat_interleave(num_negs, dim=0)
-                combined_efeat = torch.cat([self.edge_feat, expanded_efeat], dim=0)
+                neg_efeat = torch.zeros(B * num_negs, self.edge_feat.size(-1), dtype=self.edge_feat.dtype, device=dev)
+                combined_efeat = torch.cat([self.edge_feat, neg_efeat], dim=0)
 
-        return combined_src, combined_dst, combined_dt_src, combined_dt_dst, labels, combined_efeat
+        return combined_src, combined_dst, combined_dt_src, labels, combined_efeat
 
 
 class SplitLoader:

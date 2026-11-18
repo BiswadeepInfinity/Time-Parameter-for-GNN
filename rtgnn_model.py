@@ -327,12 +327,24 @@ class RotationalTemporalGNN(nn.Module):
         src_idx: torch.Tensor,
         dst_idx: torch.Tensor,
         delta_t_src: Optional[torch.Tensor] = None,
-        delta_t_dst: Optional[torch.Tensor] = None,
         edge_feat: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Evaluates link logits strictly conditioned on earlier history,
-        with optional query-time rotation, destination popularity bias,
-        multi-harmonic time features, and edge features.
+        """Evaluates link logits strictly conditioned on earlier history.
+
+        DESIGN NOTE — delta_t_dst is intentionally absent:
+        The destination's elapsed-time-since-last-contact is unknown at
+        inference time (that is what we are predicting).  Passing the real
+        delta_t_dst for positive targets and 0.0 for negatives is perfect
+        label leakage.  Only delta_t_src (source recency) is causal and safe.
+
+        Args:
+            hist_edge_index: edge index of past events [2, E_hist] or None
+            hist_delta_t:    normalised time gaps for past events [E_hist] or None
+            src_idx:         source node indices [B]
+            dst_idx:         destination node indices [B]
+            delta_t_src:     time since source last acted [B] (causal, optional)
+            edge_feat:       projected edge features [B, feat_dim] (optional;
+                             should be zeros for negative candidates)
         """
         x_real, x_imag = self.encode(hist_edge_index, hist_delta_t)
 
@@ -341,11 +353,10 @@ class RotationalTemporalGNN(nn.Module):
         dst_r = x_real[dst_idx]
         dst_i = x_imag[dst_idx]
 
-        # Upgrade 1: Query-Time Rotation & Decay
+        # Upgrade 1: Query-Time Rotation & Decay — SOURCE ONLY (causal)
         if self.query_rotation is not None and delta_t_src is not None:
             src_r, src_i = self.query_rotation(src_r, src_i, delta_t_src)
-        if self.query_rotation is not None and delta_t_dst is not None:
-            dst_r, dst_i = self.query_rotation(dst_r, dst_i, delta_t_dst)
+        # NOTE: dst rotation removed — delta_t_dst is unknown at prediction time
 
         # Upgrade 3: Multi-Harmonic Fourier Time Features
         time_feat = None

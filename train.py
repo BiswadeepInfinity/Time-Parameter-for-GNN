@@ -43,12 +43,12 @@ def train_one_epoch(
         hist_ei, hist_dt = buffer.graph(batch.t[0].item(), bundle.time_scale)
 
         # 2. Get combined prediction pairs, temporal deltas & ground truth
-        src, dst, dt_src, dt_dst, labels, efeat = batch.link_prediction_inputs()
+        src, dst, dt_src, labels, efeat = batch.link_prediction_inputs()
 
         # 3. Model forward pass on logits with all 4 upgrades
         logits = model(
             hist_ei, hist_dt, src, dst,
-            delta_t_src=dt_src, delta_t_dst=dt_dst, edge_feat=efeat,
+            delta_t_src=dt_src, edge_feat=efeat,
         )
         loss = F.binary_cross_entropy_with_logits(logits, labels)
 
@@ -119,7 +119,6 @@ def evaluate(
         all_src_list = []
         all_dst_list = []
         all_dt_src_list = []
-        all_dt_dst_list = []
         offsets = [0]
         for i, neg in enumerate(negs):
             cand = [batch.dst[i].item(), *neg]
@@ -127,19 +126,28 @@ def evaluate(
             all_src_list.extend([batch.src[i].item()] * k)
             all_dst_list.extend(cand)
             all_dt_src_list.extend([batch.delta_t_src[i].item()] * k)
-            all_dt_dst_list.append(batch.delta_t_dst[i].item())
-            all_dt_dst_list.extend([0.0] * (k - 1))
+            # NOTE: delta_t_dst intentionally NOT included — the destination's
+            # elapsed time is unknown at prediction time (that is what we predict).
+            # Passing real delta_t_dst for positives and 0.0 for negatives is
+            # a perfect label-leakage signal and was the root cause of MRR=0.8981.
             offsets.append(offsets[-1] + k)
 
         all_src_t = torch.tensor(all_src_list, dtype=torch.long, device=device)
         all_dst_t = torch.tensor(all_dst_list, dtype=torch.long, device=device)
         all_dt_src_t = torch.tensor(all_dt_src_list, dtype=torch.float32, device=device)
-        all_dt_dst_t = torch.tensor(all_dt_dst_list, dtype=torch.float32, device=device)
         all_efeat_t = None
         if batch.edge_feat is not None:
             cand_counts = [offsets[i + 1] - offsets[i] for i in range(len(negs))]
             cand_counts_t = torch.tensor(cand_counts, dtype=torch.long, device=device)
-            all_efeat_t = batch.edge_feat.repeat_interleave(cand_counts_t, dim=0)
+            # Positive gets real edge features; negatives get zeros
+            pos_efeat = batch.edge_feat.repeat_interleave(cand_counts_t, dim=0)
+            neg_mask = torch.zeros(pos_efeat.size(0), dtype=torch.bool, device=device)
+            start = 0
+            for cnt in cand_counts:
+                neg_mask[start + 1 : start + cnt] = True  # mark negative slots
+                start += cnt
+            all_efeat_t = pos_efeat.clone()
+            all_efeat_t[neg_mask] = 0.0  # zero out negative candidate features
 
         # Vectorized scoring with all 4 stateless upgrades
         src_r, src_i = xr[all_src_t], xi[all_src_t]
@@ -147,7 +155,7 @@ def evaluate(
 
         if model.query_rotation is not None:
             src_r, src_i = model.query_rotation(src_r, src_i, all_dt_src_t)
-            dst_r, dst_i = model.query_rotation(dst_r, dst_i, all_dt_dst_t)
+        # dst rotation removed: delta_t_dst is unknown at inference time
 
         time_feat = None
         if model.time_encoder is not None:

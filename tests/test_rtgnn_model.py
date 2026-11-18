@@ -157,7 +157,7 @@ class TestRTGNNModelGates(unittest.TestCase):
             self.assertIsNotNone(layer.theta.grad)
 
     def test_gate3_stateless_upgrades_forward_and_autograd(self):
-        """Gate: 4 stateless upgrades (query rotation, dst bias, harmonic time, edge proj) compute cleanly and receive autograd."""
+        """Gate: 4 stateless upgrades (query rotation src-only, dst bias, harmonic time, edge proj) compute cleanly and receive autograd."""
         cfg = RTGNNConfig(
             num_nodes=20,
             hidden_dim=self.dim,
@@ -175,12 +175,12 @@ class TestRTGNNModelGates(unittest.TestCase):
         src = torch.tensor([0, 1, 2])
         dst = torch.tensor([3, 4, 5])
         dt_src = torch.tensor([0.5, 1.2, 3.4], dtype=torch.float32)
-        dt_dst = torch.tensor([0.1, 0.8, 2.1], dtype=torch.float32)
+        # NOTE: delta_t_dst is NOT passed — removed to prevent label leakage
         efeat = torch.randn(3, 16)
 
         logits = model(
             hist_ei, hist_dt, src, dst,
-            delta_t_src=dt_src, delta_t_dst=dt_dst, edge_feat=efeat,
+            delta_t_src=dt_src, edge_feat=efeat,
         )
         self.assertEqual(logits.shape, torch.Size([3]))
         self.assertTrue(torch.isfinite(logits).all().item())
@@ -193,6 +193,34 @@ class TestRTGNNModelGates(unittest.TestCase):
         self.assertIsNotNone(model.dst_bias.weight.grad)
         self.assertIsNotNone(model.time_encoder.proj.weight.grad)
         self.assertIsNotNone(model.edge_proj.weight.grad)
+
+    def test_gate3_no_delta_t_dst_leakage(self):
+        """Anti-leakage gate: swapping positive/negative destination changes logits ONLY via
+        dst_bias and embedding differences, not via any delta_t_dst signal.
+
+        Concretely: calling forward() with and without dt_dst (which is now dropped from
+        the API) must produce identical results, confirming the parameter is gone.
+        """
+        cfg = RTGNNConfig(
+            num_nodes=20, hidden_dim=self.dim,
+            use_query_rotation=True, use_dst_bias=True,
+            use_harmonic_time=True, use_edge_feat=False,
+            device="cpu",
+        )
+        model = RotationalTemporalGNN(cfg)
+        src = torch.tensor([0, 1])
+        dst_pos = torch.tensor([2, 3])
+        dst_neg = torch.tensor([4, 5])
+        dt_src = torch.tensor([1.0, 2.0])
+
+        logits_pos = model(None, None, src, dst_pos, delta_t_src=dt_src)
+        logits_neg = model(None, None, src, dst_neg, delta_t_src=dt_src)
+
+        # Scores must differ only due to dst embedding / dst_bias — not leaked time
+        self.assertEqual(logits_pos.shape, torch.Size([2]))
+        self.assertEqual(logits_neg.shape, torch.Size([2]))
+        # They must NOT be identical (different destination nodes → different scores)
+        self.assertFalse(torch.allclose(logits_pos, logits_neg))
 
     # -------------------------------------------------------------
     # Phase 4 Gate: HistoryBuffer & Leakage Test
