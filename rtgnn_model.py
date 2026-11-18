@@ -54,7 +54,7 @@ class RTGNNConfig:
     omega_max: float = 1e1
     lambda_init: float = 0.1           # Initial decay rate in normalised time units
     bidirectional: bool = True         # Messages flow both ways along each event
-    history_batches: int = 16          # Past batches kept as the message graph
+    history_batches: int = 8           # Past batches kept as the message graph
     lr: float = 5e-3
     weight_decay: float = 1e-4
     epochs: int = 10
@@ -65,10 +65,8 @@ class RTGNNConfig:
     use_dst_bias: bool = True           # 2. Destination popularity / frequency prior
     use_harmonic_time: bool = True      # 3. Multi-harmonic Fourier time encodings
     num_harmonics: int = 8              # Number of harmonic octave bands
-    use_edge_feat: bool = True          # 4. Project edge features if provided
-    edge_dim: int = 172                 # Dimension of dataset edge features
-    use_dot_shortcut: bool = True       # 5. Bilinear dot-product shortcut in predictor
-    use_attn_aggr: bool = True          # 7. Attention aggregation in GNN conv layer
+    use_dot_shortcut: bool = False      # Bilinear dot-product shortcut in predictor
+    use_attn_aggr: bool = False         # False -> robust mean aggregation
 
 
 class TemporalRotationEngine(nn.Module):
@@ -208,11 +206,9 @@ class HarmonicTimeEncoder(nn.Module):
 class DynamicLinkPredictor(nn.Module):
     """Predicts link logits.
 
-    Upgrade 5: Dot-product shortcut: adds Re(<src_complex, conj(dst_complex)>) directly
-    to the MLP output. This bilinear term is the natural score for complex embeddings
-    and helps gradient flow even before the MLP has learned.
-
-    Upgrade 6: 2-hidden-layer MLP (d → 2d → d → 1) for more capacity.
+    Upgrade 5: Optional dot-product shortcut: adds Re(<src_complex, conj(dst_complex)>) directly
+    to the MLP output.
+    Upgrade 6: 2-hidden-layer MLP (d → 2d → d → 1) for higher representation capacity.
     """
 
     def __init__(
@@ -220,15 +216,13 @@ class DynamicLinkPredictor(nn.Module):
         dim: int,
         dropout: float,
         time_dim: int = 0,
-        edge_dim: int = 0,
-        use_dot_shortcut: bool = True,
+        use_dot_shortcut: bool = False,
     ):
         super().__init__()
         self.dim = dim
         self.time_dim = time_dim
-        self.edge_dim = edge_dim
         self.use_dot_shortcut = use_dot_shortcut
-        in_dim = 4 * dim + time_dim + edge_dim
+        in_dim = 4 * dim + time_dim
         self.net = nn.Sequential(
             nn.Linear(in_dim, dim * 2),
             nn.ReLU(),
@@ -238,7 +232,6 @@ class DynamicLinkPredictor(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(dim, 1),
         )
-        # Learnable weight to blend dot-product shortcut with MLP output
         if use_dot_shortcut:
             self.dot_scale = nn.Parameter(torch.ones(1))
 
@@ -256,7 +249,6 @@ class DynamicLinkPredictor(nn.Module):
         dst_r: torch.Tensor,
         dst_i: torch.Tensor,
         time_feat: Optional[torch.Tensor] = None,
-        edge_feat: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         feats = [src_r, src_i, dst_r, dst_i]
         if self.time_dim > 0:
@@ -264,15 +256,9 @@ class DynamicLinkPredictor(nn.Module):
                 time_feat if time_feat is not None
                 else torch.zeros(src_r.size(0), self.time_dim, device=src_r.device)
             )
-        if self.edge_dim > 0:
-            feats.append(
-                edge_feat if edge_feat is not None
-                else torch.zeros(src_r.size(0), self.edge_dim, device=src_r.device)
-            )
         logit = self.net(torch.cat(feats, dim=-1)).squeeze(-1)
-        # Upgrade 5: bilinear dot-product shortcut Re(<src, conj(dst)>)
         if self.use_dot_shortcut:
-            dot = (src_r * dst_r + src_i * dst_i).sum(dim=-1)  # Re(<z_src, conj(z_dst)>)
+            dot = (src_r * dst_r + src_i * dst_i).sum(dim=-1)
             logit = logit + self.dot_scale * dot / math.sqrt(self.dim)
         return logit
 
@@ -310,21 +296,11 @@ class RotationalTemporalGNN(nn.Module):
             time_dim = 0
             self.time_encoder = None
 
-        # Upgrade 4: Edge Feature Projection
-        if getattr(cfg, "use_edge_feat", True) and getattr(cfg, "edge_dim", 0) > 0:
-            edge_proj_dim = d // 2
-            self.edge_proj = nn.Linear(cfg.edge_dim, edge_proj_dim)
-        else:
-            edge_proj_dim = 0
-            self.edge_proj = None
-
-        # Upgrade 5+6: Wider 2-layer MLP with dot-product shortcut
         self.predictor = DynamicLinkPredictor(
             dim=d,
             dropout=cfg.dropout,
             time_dim=time_dim,
-            edge_dim=edge_proj_dim,
-            use_dot_shortcut=getattr(cfg, "use_dot_shortcut", True),
+            use_dot_shortcut=getattr(cfg, "use_dot_shortcut", False),
         )
         self.reset_parameters()
 
@@ -339,9 +315,6 @@ class RotationalTemporalGNN(nn.Module):
             nn.init.zeros_(self.dst_bias.weight)
         if self.time_encoder is not None:
             self.time_encoder.reset_parameters()
-        if self.edge_proj is not None:
-            nn.init.xavier_uniform_(self.edge_proj.weight)
-            nn.init.zeros_(self.edge_proj.bias)
         self.predictor.reset_parameters()
 
     def reset_memory(self) -> None:
@@ -369,12 +342,11 @@ class RotationalTemporalGNN(nn.Module):
         src_idx: torch.Tensor,
         dst_idx: torch.Tensor,
         delta_t_src: Optional[torch.Tensor] = None,
-        edge_feat: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Evaluates link logits strictly conditioned on earlier history.
 
-        delta_t_dst is intentionally absent — the destination's elapsed time
-        is unknown at prediction time and passing it leaks labels.
+        delta_t_dst and edge_feat are intentionally absent — destination
+        elapsed time and query edge features are unknown at prediction time.
         Only delta_t_src (source recency) is causally available.
         """
         x_real, x_imag = self.encode(hist_edge_index, hist_delta_t)
@@ -393,14 +365,9 @@ class RotationalTemporalGNN(nn.Module):
         if self.time_encoder is not None and delta_t_src is not None:
             time_feat = self.time_encoder(delta_t_src)
 
-        # Upgrade 4: Edge Feature Projection
-        edge_emb = None
-        if self.edge_proj is not None and edge_feat is not None:
-            edge_emb = self.edge_proj(edge_feat)
-
-        # Upgrades 5+6: 2-layer MLP + bilinear dot-product shortcut
+        # Scoring MLP
         logits = self.predictor(
-            src_r, src_i, dst_r, dst_i, time_feat=time_feat, edge_feat=edge_emb
+            src_r, src_i, dst_r, dst_i, time_feat=time_feat
         )
 
         # Upgrade 2: Destination Popularity Prior

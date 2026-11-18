@@ -157,15 +157,13 @@ class TestRTGNNModelGates(unittest.TestCase):
             self.assertIsNotNone(layer.theta.grad)
 
     def test_gate3_stateless_upgrades_forward_and_autograd(self):
-        """Gate: 4 stateless upgrades (query rotation src-only, dst bias, harmonic time, edge proj) compute cleanly and receive autograd."""
+        """Gate: stateless upgrades (query rotation src-only, dst bias, harmonic time) compute cleanly and receive autograd."""
         cfg = RTGNNConfig(
             num_nodes=20,
             hidden_dim=self.dim,
             use_query_rotation=True,
             use_dst_bias=True,
             use_harmonic_time=True,
-            use_edge_feat=True,
-            edge_dim=16,
             device="cpu",
         )
         model = RotationalTemporalGNN(cfg)
@@ -175,12 +173,10 @@ class TestRTGNNModelGates(unittest.TestCase):
         src = torch.tensor([0, 1, 2])
         dst = torch.tensor([3, 4, 5])
         dt_src = torch.tensor([0.5, 1.2, 3.4], dtype=torch.float32)
-        # NOTE: delta_t_dst is NOT passed — removed to prevent label leakage
-        efeat = torch.randn(3, 16)
 
         logits = model(
             hist_ei, hist_dt, src, dst,
-            delta_t_src=dt_src, edge_feat=efeat,
+            delta_t_src=dt_src,
         )
         self.assertEqual(logits.shape, torch.Size([3]))
         self.assertTrue(torch.isfinite(logits).all().item())
@@ -192,7 +188,6 @@ class TestRTGNNModelGates(unittest.TestCase):
         self.assertIsNotNone(model.query_rotation.raw_lambda.grad)
         self.assertIsNotNone(model.dst_bias.weight.grad)
         self.assertIsNotNone(model.time_encoder.proj.weight.grad)
-        self.assertIsNotNone(model.edge_proj.weight.grad)
 
     def test_gate3_no_delta_t_dst_leakage(self):
         """Anti-leakage gate: swapping positive/negative destination changes logits ONLY via
@@ -204,7 +199,7 @@ class TestRTGNNModelGates(unittest.TestCase):
         cfg = RTGNNConfig(
             num_nodes=20, hidden_dim=self.dim,
             use_query_rotation=True, use_dst_bias=True,
-            use_harmonic_time=True, use_edge_feat=False,
+            use_harmonic_time=True,
             device="cpu",
         )
         model = RotationalTemporalGNN(cfg)

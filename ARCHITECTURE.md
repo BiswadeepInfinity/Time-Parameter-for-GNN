@@ -117,19 +117,18 @@ The table below shows where RT-GNN ranks compared to all major published models 
 
 | Rank | Model Architecture | Paradigm | Test MRR Score (Higher is Better) | Processing Speed (Throughput) | Hardware Required |
 |:---:|---|---|:---:|:---:|:---:|
-| 🥇 **#1** | **Stateless RT-GNN (Ours, Upgraded)** | **Instant Formula / $O(1)$** | **`0.8981 ± 0.0042`** | **`21,234` edges/sec** | **Standard CPU** |
-| 🥈 #2 | **DyGFormer** (Yu et al., NeurIPS) | Deep Patch Transformer / $O(K^2)$ | `0.7980` | $\approx 800$ edges/sec | High-End GPU |
-| 🥉 #3 | **NAT** (Gao et al., ICML) | Neighborhood Dictionary / $O(N)$ | `0.7490` | $\approx 1,000$ edges/sec | High-End GPU |
-| #4 | **CAWN** (Zhu et al., ICLR) | Causal Anonymous Walk | `0.7110` | $\approx 1,200$ edges/sec | High-End GPU |
-| #5 | **EdgeBank (tw)** | Time-Window Table | `0.5710` | Heuristic Lookup | CPU |
-| #6 | **EdgeBank (unlimited)** | Unlimited Memory Table | `0.4950` | Heuristic Lookup | CPU |
-| #7 | **Stateful RT-GNN (Ours)** | **Associative Scan Memory / $O(\log K)$** | **`0.4059 ± 0.0322`** | **`10,539` edges/sec** | **Standard CPU** |
-| #8 | **TGN** (Rossi et al., ICML) | Recurrent GRU Memory / $O(K)$ | `0.3960` | $\approx 3,500$ edges/sec | GPU |
-| #9 | **TCL** (Wang et al., NeurIPS) | Contrastive Learning | `0.2070` | $\approx 3,200$ edges/sec | GPU |
-| #10 | **TGAT** (Xu et al., ICLR) | Temporal Graph Attention | `0.1410` | $\approx 4,000$ edges/sec | GPU |
-| #11 | **GraphMixer** (Cong et al., ICLR) | Fixed MLP Mixer / $O(1)$ | `0.1180` | $\approx 5,000$ edges/sec | GPU |
-| #12 | **Old Stateless RT-GNN** | Unaugmented Formula | `0.1047` | `23,018` edges/sec | Standard CPU |
-| #13 | **DyRep** (Trivedi et al., ICLR) | Temporal Point Process | `0.0500` | $\approx 2,500$ edges/sec | GPU |
+| #1 | **DyGFormer** (Yu et al., NeurIPS) | Deep Patch Transformer / $O(K^2)$ | `0.7980` | $\approx 800$ edges/sec | High-End GPU |
+| #2 | **NAT** (Gao et al., ICML) | Neighborhood Dictionary / $O(N)$ | `0.7490` | $\approx 1,000$ edges/sec | High-End GPU |
+| #3 | **CAWN** (Zhu et al., ICLR) | Causal Anonymous Walk | `0.7110` | $\approx 1,200$ edges/sec | High-End GPU |
+| #4 | **EdgeBank (tw)** | Time-Window Table | `0.5710` | Heuristic Lookup | CPU |
+| #5 | **EdgeBank (unlimited)** | Unlimited Memory Table | `0.4950` | Heuristic Lookup | CPU |
+| 🚀 **#6** | **Stateful RT-GNN (Ours)** | **Associative Scan Memory / $O(\log K)$** | **`0.4755 ± 0.0215`** | **`8,710` edges/sec** | **Standard CPU** |
+| #7 | **TGN** (Rossi et al., ICML) | Recurrent GRU Memory / $O(K)$ | `0.3960` | $\approx 3,500$ edges/sec | GPU |
+| #8 | **TCL** (Wang et al., NeurIPS) | Contrastive Learning | `0.2070` | $\approx 3,200$ edges/sec | GPU |
+| #9 | **TGAT** (Xu et al., ICLR) | Temporal Graph Attention | `0.1410` | $\approx 4,000$ edges/sec | GPU |
+| #10 | **GraphMixer** (Cong et al., ICLR) | Fixed MLP Mixer / $O(1)$ | `0.1180` | $\approx 5,000$ edges/sec | GPU |
+| ⚡ **#11** | **Stateless RT-GNN (Ours)** | **Closed Semigroup / $O(1)$** | **`0.1158 ± 0.0179`** | **`19,380` edges/sec** | **Standard CPU** |
+| #12 | **DyRep** (Trivedi et al., ICLR) | Temporal Point Process | `0.0500` | $\approx 2,500$ edges/sec | GPU |
 
 ---
 
@@ -137,16 +136,16 @@ The table below shows where RT-GNN ranks compared to all major published models 
 
 Mean Reciprocal Rank (MRR) measures how many positions down a user has to look before finding the right result:
 
-* **Old Stateless Model (`0.1047`)**: On average, the model placed the right answer at **Rank #10**. It was very fast, but usually guessed wrong.
+* **Stateless RT-GNN (`0.1158`)**: Matches the published GraphMixer baseline (`0.1180`) and more than doubles DyRep (`0.0500`) while requiring zero persistent memory and operating at constant $O(1)$ time complexity.
 * **Famous TGN Baseline (`0.3960`)**: Placed the right answer around **Rank #2.5 to #3**.
-* **Leading Transformer DyGFormer (`0.7980`)**: Placed the right answer around **Rank #1.25**.
-* **Upgraded Stateless RT-GNN (`0.8981`)**: Places the right answer at **Rank #1.1**—meaning it correctly guesses the exact target on its very first try almost **90% of the time**.
+* **Stateful RT-GNN (`0.4755`)**: Strongly outperforms recurrent TGN by nearly **8 percentage points** while processing over **`8,700` edges/sec** on CPU via parallel complex associative prefix scans.
+* **Leading Transformer DyGFormer (`0.7980`)**: Heavy offline attention model requiring specialized GPU clusters and significant computational latency.
 
 ---
 
 ### 4.3 The Speed & Efficiency Advantage
 
-* **26x Faster than the Previous Leader**: DyGFormer requires heavy quadratic attention, maxing out at roughly $800$ edges/second on expensive graphics cards. RT-GNN processes over **$21{,}200$ edges/second on a standard multi-core CPU**.
+* **10x Faster than Transformer Architectures**: DyGFormer requires heavy quadratic attention, maxing out at roughly $800$ edges/second on expensive graphics cards. RT-GNN processes over **$19{,}380$ edges/second on a standard multi-core CPU**.
 * **Zero GPU Memory Overhead**: Because Stateless RT-GNN requires no persistent hidden state buffers, it can run on edge devices, personal laptops, or lightweight server CPUs without running out of video memory (VRAM).
 
 ---

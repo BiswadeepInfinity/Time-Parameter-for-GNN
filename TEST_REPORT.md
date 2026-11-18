@@ -1,6 +1,6 @@
 # RT-GNN Implementation Blueprint v2 - Reviewer Verification Report
 
-**Execution Date**: `2026-11-17 18:41:47`  
+**Execution Date**: `2026-11-18 11:51:06`  
 
 **Host Platform**: `Windows 11` (`AMD64`)  
 
@@ -17,11 +17,11 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 | Metric | Result |
 |---|---|
-| **Total Tests Executed** | **34** |
-| **Passed** | **34** |
+| **Total Tests Executed** | **35** |
+| **Passed** | **35** |
 | **Skipped** | **0** |
 | **Failed** | **0** |
-| **Total Execution Time** | **0.388 seconds** |
+| **Total Execution Time** | **0.253 seconds** |
 | **Audit Status** | **PASSED (100% Conformance)** |
 
 ---
@@ -56,14 +56,15 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 | 24 | `test_gate2_semigroup_property` | Sec 3 (Semigroup Property: T(a) o T(b) = T(a+b)) | Random complex states z in C^32, arbitrary intervals a=1.5s, b=0.8s. | abs(T_b(T_a(z)) - T_{a+b}(z)) <= 1e-05 (proves closed-form O(1) jump validity). | ✅ PASS |
 | 25 | `test_gate3_empty_history_path` | Sec 4 (HistoryBuffer initialization) | Forward pass at batch 0 before any past events exist in the buffer. | Model gracefully executes using initial node embeddings without NaN or crash. | ✅ PASS |
 | 26 | `test_gate3_gradients_reach_all_parameters` | Sec 4 & Sec 7.2 (#1: Autograd completeness) | Full backward pass through DynamicLinkPredictor and TemporalRotationalConv. | Gradients strictly reach emb_real, emb_imag, conv.omega, conv.raw_lambda, and conv.theta. | ✅ PASS |
-| 27 | `test_gate3_stateless_upgrades_forward_and_autograd` | Sec 4 & Sec 7 (Stateless O(1) Upgrades) | 4 Stateless upgrades: query-time rotation T_dt(z), dst bias, harmonic time, and edge projection. | Forward pass cleanly computes, and autograd strictly flows to all 4 upgrade modules without memory state. | ✅ PASS |
-| 28 | `test_gate4_history_gaps_never_negative` | Sec 4 (HistoryBuffer causal ordering) | Events pushed into HistoryBuffer evaluated against future reference time t_ref. | Delta_t = (t_ref - t_past) >= 0.0 strictly non-negative. | ✅ PASS |
-| 29 | `test_gate4_no_label_leakage` | Sec 1 (#6) & Sec 4 (HistoryBuffer Leakage Test) | Altering the current batch predicting edges [0, 4] vs [0, 5]. | encode(hist) output is identical (0.0 diff), proving model never sees its own labels. | ✅ PASS |
-| 30 | `test_01_binary_associative_axiom` | Sec 3 (Associative Binary Operator Axiom) | Arbitrary complex tuples (a1, b1), (a2, b2), (a3, b3) in C^32. | ((T1 o T2) o T3) == (T1 o (T2 o T3)) within 1e-06 tolerance. | ✅ PASS |
-| 31 | `test_02_gate_forward_scan_matches_sequential` | Sec 7 Phase 7 Gate (Forward Pass Equivalence) | Parallel associative scan vs sequential recurrence over K=128 events. | abs(parallel_scan - sequential_loop) <= 1e-05 (proves closed-form O(log K) scan). | ✅ PASS |
-| 32 | `test_03_gate_backward_gradients_match_sequential` | Sec 7 Phase 7 Gate (Backward Autograd Equivalence) | Backpropagation through parallel scan vs sequential loop (K=64). | Gradients w.r.t omega, lambda_raw, and B match within 1e-05 without sequential BPTT. | ✅ PASS |
-| 33 | `test_04_gate_gradients_bounded_on_longest_sequence` | Sec 7 Phase 7 Gate (Long-Sequence Stability) | Single-node event sequence of K=1,024 consecutive continuous interactions. | Gradients remain strictly finite and bounded (no vanishing or exploding gradients). | ✅ PASS |
-| 34 | `test_05_persistent_state_continuity` | Sec 3 & Sec 7 Phase 7 (Continuous State Persistence) | Multiple successive event bursts updating persistent node memory. | Node memory retains continuous decayed-rotated state across streaming intervals. | ✅ PASS |
+| 27 | `test_gate3_no_delta_t_dst_leakage` | Architecture verification | Anti-leakage gate: swapping positive/negative destination changes logits ONLY via | Assertion holds without error | ✅ PASS |
+| 28 | `test_gate3_stateless_upgrades_forward_and_autograd` | Sec 4 & Sec 7 (Stateless O(1) Upgrades) | 4 Stateless upgrades: query-time rotation T_dt(z), dst bias, harmonic time, and edge projection. | Forward pass cleanly computes, and autograd strictly flows to all 4 upgrade modules without memory state. | ✅ PASS |
+| 29 | `test_gate4_history_gaps_never_negative` | Sec 4 (HistoryBuffer causal ordering) | Events pushed into HistoryBuffer evaluated against future reference time t_ref. | Delta_t = (t_ref - t_past) >= 0.0 strictly non-negative. | ✅ PASS |
+| 30 | `test_gate4_no_label_leakage` | Sec 1 (#6) & Sec 4 (HistoryBuffer Leakage Test) | Altering the current batch predicting edges [0, 4] vs [0, 5]. | encode(hist) output is identical (0.0 diff), proving model never sees its own labels. | ✅ PASS |
+| 31 | `test_01_binary_associative_axiom` | Sec 3 (Associative Binary Operator Axiom) | Arbitrary complex tuples (a1, b1), (a2, b2), (a3, b3) in C^32. | ((T1 o T2) o T3) == (T1 o (T2 o T3)) within 1e-06 tolerance. | ✅ PASS |
+| 32 | `test_02_gate_forward_scan_matches_sequential` | Sec 7 Phase 7 Gate (Forward Pass Equivalence) | Parallel associative scan vs sequential recurrence over K=128 events. | abs(parallel_scan - sequential_loop) <= 1e-05 (proves closed-form O(log K) scan). | ✅ PASS |
+| 33 | `test_03_gate_backward_gradients_match_sequential` | Sec 7 Phase 7 Gate (Backward Autograd Equivalence) | Backpropagation through parallel scan vs sequential loop (K=64). | Gradients w.r.t omega, lambda_raw, and B match within 1e-05 without sequential BPTT. | ✅ PASS |
+| 34 | `test_04_gate_gradients_bounded_on_longest_sequence` | Sec 7 Phase 7 Gate (Long-Sequence Stability) | Single-node event sequence of K=1,024 consecutive continuous interactions. | Gradients remain strictly finite and bounded (no vanishing or exploding gradients). | ✅ PASS |
+| 35 | `test_05_persistent_state_continuity` | Sec 3 & Sec 7 Phase 7 (Continuous State Persistence) | Multiple successive event bursts updating persistent node memory. | Node memory retains continuous decayed-rotated state across streaming intervals. | ✅ PASS |
 
 ---
 
@@ -101,7 +102,7 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 - **Dataset**: `tgbl-wiki` (TGB official fixed negatives)
 
-- **Epochs**: `5` | **Batch Size**: `2048` | **Hidden Dim**: `64`
+- **Epochs**: `3` | **Batch Size**: `2048` | **Hidden Dim**: `64`
 
 - **Execution Hardware**: `Windows 11 (AMD64)` (Device: `cpu`)
 
@@ -110,9 +111,9 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 |---|:---:|:---:|:---:|:---:|:---:|
 
-| **STATELESS RT-GNN** | 5 | **0.8981 ± 0.0042** | 0.8649 ± 0.0052 | 21234.4 | 631.6 |
+| **STATELESS RT-GNN** | 3 | **0.1158 ± 0.0179** | 0.1389 ± 0.0249 | 19379.9 | 622.5 |
 
-| **STATEFUL RT-GNN** | 5 | **0.3934 ± 0.0340** | 0.4165 ± 0.0257 | 10539.4 | 588.5 |
+| **STATEFUL RT-GNN** | 3 | **0.4755 ± 0.0215** | 0.4906 ± 0.0242 | 8710.0 | 588.5 |
 
 
 

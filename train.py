@@ -44,12 +44,11 @@ def train_one_epoch(
         hist_ei, hist_dt = buffer.graph(batch.t[0].item(), bundle.time_scale)
 
         # 2. Get combined prediction pairs, temporal deltas & ground truth
-        src, dst, dt_src, labels, efeat = batch.link_prediction_inputs()
+        src, dst, dt_src, labels = batch.link_prediction_inputs()
 
-        # 3. Model forward pass on logits with all 4 upgrades
+        # 3. Model forward pass on logits with all leak-free upgrades
         logits = model(
-            hist_ei, hist_dt, src, dst,
-            delta_t_src=dt_src, edge_feat=efeat,
+            hist_ei, hist_dt, src, dst, delta_t_src=dt_src,
         )
         loss = F.binary_cross_entropy_with_logits(logits, labels)
 
@@ -136,37 +135,19 @@ def evaluate(
         all_src_t = torch.tensor(all_src_list, dtype=torch.long, device=device)
         all_dst_t = torch.tensor(all_dst_list, dtype=torch.long, device=device)
         all_dt_src_t = torch.tensor(all_dt_src_list, dtype=torch.float32, device=device)
-        all_efeat_t = None
-        if batch.edge_feat is not None:
-            cand_counts = [offsets[i + 1] - offsets[i] for i in range(len(negs))]
-            cand_counts_t = torch.tensor(cand_counts, dtype=torch.long, device=device)
-            # Positive gets real edge features; negatives get zeros
-            pos_efeat = batch.edge_feat.repeat_interleave(cand_counts_t, dim=0)
-            neg_mask = torch.zeros(pos_efeat.size(0), dtype=torch.bool, device=device)
-            start = 0
-            for cnt in cand_counts:
-                neg_mask[start + 1 : start + cnt] = True  # mark negative slots
-                start += cnt
-            all_efeat_t = pos_efeat.clone()
-            all_efeat_t[neg_mask] = 0.0  # zero out negative candidate features
 
-        # Vectorized scoring with all 4 stateless upgrades
+        # Vectorized scoring with leak-free stateless upgrades
         src_r, src_i = xr[all_src_t], xi[all_src_t]
         dst_r, dst_i = xr[all_dst_t], xi[all_dst_t]
 
         if model.query_rotation is not None:
             src_r, src_i = model.query_rotation(src_r, src_i, all_dt_src_t)
-        # dst rotation removed: delta_t_dst is unknown at inference time
 
         time_feat = None
         if model.time_encoder is not None:
             time_feat = model.time_encoder(all_dt_src_t)
 
-        edge_emb = None
-        if model.edge_proj is not None and all_efeat_t is not None:
-            edge_emb = model.edge_proj(all_efeat_t)
-
-        all_logits = model.predictor(src_r, src_i, dst_r, dst_i, time_feat=time_feat, edge_feat=edge_emb)
+        all_logits = model.predictor(src_r, src_i, dst_r, dst_i, time_feat=time_feat)
         if model.dst_bias is not None:
             all_logits = all_logits + model.dst_bias(all_dst_t).squeeze(-1)
 
