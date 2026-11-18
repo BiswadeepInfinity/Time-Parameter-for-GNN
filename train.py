@@ -34,7 +34,7 @@ def train_one_epoch(
     """Trains the model for one chronological epoch over the stream."""
     model.train()
     buffer.clear()
-    model.reset_memory()   # Reset affinity table + interaction memory each epoch
+    model.reset_memory()
     total_loss, count = 0.0, 0
 
     for batch in bundle.train:
@@ -62,15 +62,6 @@ def train_one_epoch(
 
         # 5. Push current batch to history buffer ONLY after scoring
         buffer.push(batch.src, batch.dst, batch.t)
-
-        # 6. Update causal non-parametric state AFTER scoring (zero leakage)
-        with torch.no_grad():
-            if model.affinity_table is not None:
-                model.affinity_table.update(batch.src, batch.dst)
-            if model.interaction_memory is not None:
-                # Store the dst embedding (real part) as memory for each src
-                xr_cur, _ = model.encode(hist_ei, hist_dt)
-                model.interaction_memory.update(batch.src, xr_cur[batch.dst])
 
         total_loss += loss.item()
         count += 1
@@ -193,12 +184,6 @@ def evaluate(
 
         # Maintain causal progression in history buffer
         buffer.push(batch.src, batch.dst, batch.t)
-
-        # Update causal non-parametric state AFTER scoring (zero leakage)
-        if model.affinity_table is not None:
-            model.affinity_table.update(batch.src, batch.dst)
-        if model.interaction_memory is not None:
-            model.interaction_memory.update(batch.src, xr[batch.dst.to(device)])
 
     return float(np.mean(mrr_list)) if mrr_list else 0.0
 
