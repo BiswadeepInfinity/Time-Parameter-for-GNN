@@ -50,7 +50,7 @@ def run_single_seed_stateless(
         dataset_name=dataset_name,
         data_root=data_root,
         batch_size=batch_size,
-        delta_t_mode="batch",
+        delta_t_mode="event",
         device=device,
         seed=seed,
     )
@@ -61,6 +61,8 @@ def run_single_seed_stateless(
         num_nodes=bundle.num_nodes,
         hidden_dim=hidden_dim,
         omega_min=omega_min,
+        history_batches=16,
+        use_dot_shortcut=True,
         epochs=epochs,
         device=device,
     )
@@ -75,6 +77,7 @@ def run_single_seed_stateless(
 
     for epoch in range(epochs):
         bundle.reset_state()
+        model.reset_memory()
         bundle.train.set_epoch(epoch)
         t0 = time.time()
         final_loss = train_one_epoch(model, bundle, buffer, optimizer, cfg)
@@ -206,6 +209,16 @@ def main():
     print(f"  Dataset: {args.dataset_name} | Epochs: {args.epochs} | Seeds: {args.seeds} | Device: {args.device}")
     print("=" * 80)
 
+    out_path = Path(args.output_json)
+    existing_models = {}
+    if out_path.exists():
+        try:
+            with open(out_path, "r", encoding="utf-8") as f:
+                prev_data = json.load(f)
+                existing_models = prev_data.get("models", {})
+        except Exception:
+            existing_models = {}
+
     benchmark_record = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
@@ -216,7 +229,7 @@ def main():
         "batch_size": args.batch_size,
         "hidden_dim": args.hidden_dim,
         "device": args.device,
-        "models": {},
+        "models": existing_models,
     }
 
     for model_name in args.models:

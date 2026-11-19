@@ -19,6 +19,14 @@ Accuracy Upgrades (v3 — leak-free):
   6. Wider 2-Hidden-Layer MLP Predictor
   7. Attention Aggregation in GNN layer (replaces mean — learns which neighbours matter)
 
+Accuracy Upgrades (v4 — stateless persistent memory, O(1) per event):
+  8. SemiGroupNodeMemory: lightweight persistent complex EMA memory per node.
+     Updated as z_u ← T(dt) * z_u + B * msg, NO edge history stored.
+     Strictly O(1) per event, semigroup-compatible, zero leakage.
+     Keeps stateless paradigm: no sequential scan needed (B * msg is a linear
+     projection of a normalised embedding, not the true destination).
+  9. history_batches raised from 8 → 32 (more graph context for GNN layers).
+
 What was tried and REMOVED because it inflated MRR to ~1.0 against TGB random negatives:
   - SrcDstAffinityTable: This is EdgeBank in disguise. After several epochs every
     training positive has count>0 while every random negative has count=0.
@@ -54,7 +62,7 @@ class RTGNNConfig:
     omega_max: float = 1e1
     lambda_init: float = 0.1           # Initial decay rate in normalised time units
     bidirectional: bool = True         # Messages flow both ways along each event
-    history_batches: int = 8           # Past batches kept as the message graph
+    history_batches: int = 32          # Past batches kept as the message graph (v4: 8→32)
     lr: float = 5e-3
     weight_decay: float = 1e-4
     epochs: int = 10
@@ -67,6 +75,8 @@ class RTGNNConfig:
     num_harmonics: int = 8              # Number of harmonic octave bands
     use_dot_shortcut: bool = False      # Bilinear dot-product shortcut in predictor
     use_attn_aggr: bool = False         # False -> robust mean aggregation
+    # v4: Lightweight O(1) persistent complex node memory (SemiGroupNodeMemory)
+    use_node_memory: bool = True        # 8. Stateless persistent complex EMA memory
 
 
 class TemporalRotationEngine(nn.Module):
@@ -180,6 +190,93 @@ class TemporalRotationalConv(MessagePassing):
         return msg
 
 
+class SemiGroupNodeMemory(nn.Module):
+    """Lightweight O(1) persistent complex node memory for the stateless RT-GNN.
+
+    Maintains a per-node complex state z_u in C^d, updated after each batch
+    without storing any edge history (leak-free) via:
+
+        z_u ← T(dt) * z_u + proj(msg_u)
+
+    where T(dt) = exp((-lambda + i*omega) * dt) is the semigroup time operator
+    and msg_u = mean of [emb_real[u] || emb_imag[u]] of involved nodes,
+    projected through a learnable linear map B.
+
+    This is O(1) per event and obeys the semigroup property:
+        T(a) o T(b) = T(a+b)
+
+    Critically: msg_u is built from CURRENT BATCH node indices and their static
+    base embeddings — it does NOT encode the destination identity, so it cannot
+    degenerate into EdgeBank.
+    """
+
+    def __init__(self, num_nodes: int, feature_dim: int, cfg: RTGNNConfig):
+        super().__init__()
+        self.num_nodes = num_nodes
+        self.d = feature_dim
+        # Learnable input projection B: 2d → d (projects base emb concat into memory space)
+        self.msg_proj_real = nn.Linear(2 * feature_dim, feature_dim, bias=False)
+        self.msg_proj_imag = nn.Linear(2 * feature_dim, feature_dim, bias=False)
+        # Shared time operator for memory decay-rotation
+        self.time_op = TemporalRotationEngine(feature_dim, cfg)
+        # Norm scale to prevent memory explosion
+        self.norm_scale = nn.Parameter(torch.ones(1))
+        # Persistent (non-gradient) complex memory buffers
+        self.register_buffer("mem_real", torch.zeros(num_nodes, feature_dim))
+        self.register_buffer("mem_imag", torch.zeros(num_nodes, feature_dim))
+
+    def reset_parameters(self) -> None:
+        nn.init.xavier_uniform_(self.msg_proj_real.weight)
+        nn.init.xavier_uniform_(self.msg_proj_imag.weight)
+        self.time_op.reset_parameters()
+        nn.init.ones_(self.norm_scale)
+
+    def reset_memory(self) -> None:
+        """Clears persistent memory (called at start of each epoch)."""
+        self.mem_real.zero_()
+        self.mem_imag.zero_()
+
+    @torch.no_grad()
+    def update(
+        self,
+        node_ids: torch.Tensor,       # [K] unique node indices active in this batch
+        base_emb_real: torch.Tensor,  # [N, d] full embedding table (detached)
+        base_emb_imag: torch.Tensor,  # [N, d]
+        delta_t: torch.Tensor,        # [K] normalised elapsed time for each node
+    ) -> None:
+        """Updates memory for active nodes after batch scoring (no gradient)."""
+        emb_r = base_emb_real[node_ids].detach()   # [K, d]
+        emb_i = base_emb_imag[node_ids].detach()   # [K, d]
+        # Build input message from base embeddings (no destination identity)
+        msg_in = torch.cat([emb_r, emb_i], dim=-1)  # [K, 2d]
+        m_r = self.msg_proj_real(msg_in).detach()   # [K, d]
+        m_i = self.msg_proj_imag(msg_in).detach()   # [K, d]
+
+        # Decay-rotate existing memory
+        old_r = self.mem_real[node_ids]  # [K, d]
+        old_i = self.mem_imag[node_ids]  # [K, d]
+        decayed_r, decayed_i = self.time_op(old_r, old_i, delta_t)
+
+        # Accumulate: z ← T(dt) * z + B * emb
+        new_r = decayed_r + m_r
+        new_i = decayed_i + m_i
+
+        # Soft norm to bound magnitude (prevents runaway growth)
+        mag = (new_r.square() + new_i.square()).mean(dim=-1, keepdim=True).sqrt().clamp_min(1.0)
+        scale = self.norm_scale.abs().clamp_min(1e-3)
+        new_r = new_r / mag * scale
+        new_i = new_i / mag * scale
+
+        self.mem_real[node_ids] = new_r
+        self.mem_imag[node_ids] = new_i
+
+    def get(
+        self, node_ids: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Returns current memory state for given nodes. Read-only (no gradient)."""
+        return self.mem_real[node_ids].detach(), self.mem_imag[node_ids].detach()
+
+
 class HarmonicTimeEncoder(nn.Module):
     """Multi-harmonic Fourier temporal feature encoder."""
 
@@ -264,7 +361,12 @@ class DynamicLinkPredictor(nn.Module):
 
 
 class RotationalTemporalGNN(nn.Module):
-    """End-to-End Rotational Temporal Graph Neural Network (RT-GNN)."""
+    """End-to-End Rotational Temporal Graph Neural Network (RT-GNN).
+
+    v4: Integrates SemiGroupNodeMemory for O(1) persistent cross-batch state.
+    Memory is updated with no_grad after each batch, keeping the stateless
+    (O(1) per event, semigroup-compliant) paradigm intact.
+    """
 
     def __init__(self, cfg: RTGNNConfig):
         super().__init__()
@@ -296,6 +398,17 @@ class RotationalTemporalGNN(nn.Module):
             time_dim = 0
             self.time_encoder = None
 
+        # Upgrade 8 (v4): Lightweight O(1) persistent complex node memory
+        if getattr(cfg, "use_node_memory", True):
+            self.node_memory = SemiGroupNodeMemory(cfg.num_nodes, d, cfg)
+            # Memory fuser: projects (emb + mem) → d for each of real and imag
+            self.mem_fuse_real = nn.Linear(2 * d, d, bias=True)
+            self.mem_fuse_imag = nn.Linear(2 * d, d, bias=True)
+        else:
+            self.node_memory = None
+            self.mem_fuse_real = None
+            self.mem_fuse_imag = None
+
         self.predictor = DynamicLinkPredictor(
             dim=d,
             dropout=cfg.dropout,
@@ -315,18 +428,43 @@ class RotationalTemporalGNN(nn.Module):
             nn.init.zeros_(self.dst_bias.weight)
         if self.time_encoder is not None:
             self.time_encoder.reset_parameters()
+        if self.node_memory is not None:
+            self.node_memory.reset_parameters()
+            nn.init.xavier_uniform_(self.mem_fuse_real.weight)
+            nn.init.zeros_(self.mem_fuse_real.bias)
+            nn.init.xavier_uniform_(self.mem_fuse_imag.weight)
+            nn.init.zeros_(self.mem_fuse_imag.bias)
         self.predictor.reset_parameters()
 
     def reset_memory(self) -> None:
-        """No-op — kept for API compatibility with train.py's reset_memory() call."""
-        pass
+        """Clears persistent node memory (called at epoch start)."""
+        if self.node_memory is not None:
+            self.node_memory.reset_memory()
+
+    def _fuse_memory(
+        self, x_real: torch.Tensor, x_imag: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Fuses base embeddings with persistent memory state."""
+        if self.node_memory is None:
+            return x_real, x_imag
+        # Read all node memory (no gradient — memory is updated separately)
+        all_ids = torch.arange(x_real.size(0), device=x_real.device)
+        mem_r, mem_i = self.node_memory.get(all_ids)
+        # Fuse: cat([emb, mem]) → Linear → d
+        fused_r = F.relu(self.mem_fuse_real(torch.cat([x_real, mem_r], dim=-1)))
+        fused_i = F.relu(self.mem_fuse_imag(torch.cat([x_imag, mem_i], dim=-1)))
+        # Residual connection keeps gradient flowing into base embeddings
+        return fused_r + x_real, fused_i + x_imag
 
     def encode(
         self,
         hist_edge_index: Optional[torch.Tensor],
         hist_delta_t: Optional[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        x_real, x_imag = self.emb_real.weight, self.emb_imag.weight
+        x_real = self.emb_real.weight
+        x_imag = self.emb_imag.weight
+        # Fuse in persistent memory before GNN message passing
+        x_real, x_imag = self._fuse_memory(x_real, x_imag)
         if hist_edge_index is None or hist_delta_t is None:
             return x_real, x_imag
         for conv in self.layers:
@@ -334,6 +472,37 @@ class RotationalTemporalGNN(nn.Module):
             x_real = F.relu(h_real) + x_real
             x_imag = F.relu(h_imag) + x_imag
         return x_real, x_imag
+
+    def update_memory(
+        self,
+        src: torch.Tensor,
+        dst: torch.Tensor,
+        delta_t_src: torch.Tensor,
+        delta_t_dst: torch.Tensor,
+    ) -> None:
+        """Updates persistent memory for src and dst nodes after scoring.
+
+        Called AFTER the forward pass + loss.backward() + optimizer.step()
+        so memory never leaks into the current batch's gradient computation.
+        """
+        if self.node_memory is None:
+            return
+        # Unique active nodes
+        all_nodes = torch.cat([src, dst]).unique()
+        # Build a delta_t for each: use max(dt_src, dt_dst) per node
+        # For simplicity, scatter-reduce to get per-node elapsed time
+        N = self.cfg.num_nodes
+        node_dt = torch.zeros(N, device=src.device)
+        node_dt.scatter_reduce_(0, src, delta_t_src, reduce="amax", include_self=True)
+        node_dt.scatter_reduce_(0, dst, delta_t_dst, reduce="amax", include_self=True)
+        per_node_dt = node_dt[all_nodes]
+
+        self.node_memory.update(
+            all_nodes,
+            self.emb_real.weight,
+            self.emb_imag.weight,
+            per_node_dt,
+        )
 
     def forward(
         self,

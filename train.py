@@ -59,7 +59,18 @@ def train_one_epoch(
             nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
         optimizer.step()
 
-        # 5. Push current batch to history buffer ONLY after scoring
+        # 5. Update persistent node memory AFTER the optimizer step (leak-free)
+        #    Uses batch.delta_t_src/dst (unnormalised, from the original batch)
+        if hasattr(model, "update_memory"):
+            with torch.no_grad():
+                model.update_memory(
+                    batch.src.to(cfg.device),
+                    batch.dst.to(cfg.device),
+                    batch.delta_t_src.to(cfg.device),
+                    batch.delta_t_dst.to(cfg.device),
+                )
+
+        # 6. Push current batch to history buffer ONLY after scoring
         buffer.push(batch.src, batch.dst, batch.t)
 
         total_loss += loss.item()
@@ -163,8 +174,15 @@ def evaluate(
             })
             mrr_list.append(float(eval_res[metric]))
 
-        # Maintain causal progression in history buffer
+        # Maintain causal progression in history buffer + persistent memory
         buffer.push(batch.src, batch.dst, batch.t)
+        if hasattr(model, "update_memory"):
+            model.update_memory(
+                batch.src.to(device),
+                batch.dst.to(device),
+                batch.delta_t_src.to(device),
+                batch.delta_t_dst.to(device),
+            )
 
     return float(np.mean(mrr_list)) if mrr_list else 0.0
 

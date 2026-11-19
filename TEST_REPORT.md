@@ -1,6 +1,6 @@
 # RT-GNN Implementation Blueprint v2 - Reviewer Verification Report
 
-**Execution Date**: `2026-11-18 11:51:06`  
+**Execution Date**: `2026-11-19 12:42:11`  
 
 **Host Platform**: `Windows 11` (`AMD64`)  
 
@@ -21,7 +21,7 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 | **Passed** | **35** |
 | **Skipped** | **0** |
 | **Failed** | **0** |
-| **Total Execution Time** | **0.253 seconds** |
+| **Total Execution Time** | **0.284 seconds** |
 | **Audit Status** | **PASSED (100% Conformance)** |
 
 ---
@@ -102,7 +102,7 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 - **Dataset**: `tgbl-wiki` (TGB official fixed negatives)
 
-- **Epochs**: `3` | **Batch Size**: `2048` | **Hidden Dim**: `64`
+- **Epochs**: `5` | **Batch Size**: `2048` | **Hidden Dim**: `64`
 
 - **Execution Hardware**: `Windows 11 (AMD64)` (Device: `cpu`)
 
@@ -111,9 +111,9 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 |---|:---:|:---:|:---:|:---:|:---:|
 
-| **STATELESS RT-GNN** | 3 | **0.1158 ± 0.0179** | 0.1389 ± 0.0249 | 19379.9 | 622.5 |
+| **STATELESS RT-GNN** | 5 | **0.4683 ± 0.0111** | 0.5261 ± 0.0073 | 5684.0 | 615.4 |
 
-| **STATEFUL RT-GNN** | 3 | **0.4755 ± 0.0215** | 0.4906 ± 0.0242 | 8710.0 | 588.5 |
+| **STATEFUL RT-GNN** | 5 | **0.4804 ± 0.0366** | 0.5019 ± 0.0273 | 8991.6 | 588.5 |
 
 
 

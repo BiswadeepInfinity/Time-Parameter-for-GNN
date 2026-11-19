@@ -1,85 +1,121 @@
 {
-  "timestamp": "2026-11-18 11:29:32",
+  "timestamp": "2026-11-19 11:24:13",
   "platform": "Windows 11 (AMD64)",
   "python_version": "3.14.7",
   "torch_version": "2.14.1+cpu",
   "dataset": "tgbl-wiki",
-  "epochs": 3,
+  "epochs": 5,
   "batch_size": 2048,
   "hidden_dim": 64,
   "device": "cpu",
   "models": {
     "stateless": {
-      "mrr_mean": 0.11580586592323645,
-      "mrr_std": 0.017898011318390923,
-      "val_mrr_mean": 0.13888280921523571,
-      "val_mrr_std": 0.024895484218202247,
-      "edges_per_sec": 19379.86196794666,
-      "peak_ram_mb": 622.5209922790527,
+      "mrr_mean": 0.46834068062536743,
+      "mrr_std": 0.01109497881505927,
+      "val_mrr_mean": 0.5260705569012318,
+      "val_mrr_std": 0.007305921303570343,
+      "edges_per_sec": 5683.968916804002,
+      "peak_ram_mb": 615.3717840194702,
       "seeds": [
         {
           "seed": 0,
-          "final_train_loss": 0.3751715725218808,
-          "val_mrr": 0.15874930014991126,
-          "test_mrr": 0.12873316399331827,
-          "avg_epoch_sec": 6.245846668879191,
-          "throughput_edges_sec": 17648.848241703792,
-          "peak_ram_mb": 658.2983694076538
+          "final_train_loss": 0.13081102059395225,
+          "val_mrr": 0.5274922327913889,
+          "test_mrr": 0.48172838126296225,
+          "avg_epoch_sec": 20.22839503288269,
+          "throughput_edges_sec": 5449.369553086642,
+          "peak_ram_mb": 658.3092041015625
         },
         {
           "seed": 1,
-          "final_train_loss": 0.34729311366875965,
-          "val_mrr": 0.14694336929079513,
-          "test_mrr": 0.12330654761360783,
-          "avg_epoch_sec": 5.406312783559163,
-          "throughput_edges_sec": 20389.497317880017,
-          "peak_ram_mb": 604.6317043304443
+          "final_train_loss": 0.13311855563962902,
+          "val_mrr": 0.5157380709734862,
+          "test_mrr": 0.45631054411477345,
+          "avg_epoch_sec": 21.972248792648315,
+          "throughput_edges_sec": 5016.873832089616,
+          "peak_ram_mb": 604.6371164321899
         },
         {
           "seed": 2,
-          "final_train_loss": 0.3586208086322855,
-          "val_mrr": 0.11095575820500074,
-          "test_mrr": 0.09537788616278325,
-          "avg_epoch_sec": 5.483840703964233,
-          "throughput_edges_sec": 20101.24034425617,
-          "peak_ram_mb": 604.6329030990601
+          "final_train_loss": 0.1400831330705572,
+          "val_mrr": 0.5252987647729528,
+          "test_mrr": 0.45756364334831534,
+          "avg_epoch_sec": 17.43818325996399,
+          "throughput_edges_sec": 6321.300697250938,
+          "peak_ram_mb": 604.6377725601196
+        },
+        {
+          "seed": 3,
+          "final_train_loss": 0.12811231544172322,
+          "val_mrr": 0.5362622066247512,
+          "test_mrr": 0.4750418660596203,
+          "avg_epoch_sec": 18.21234760284424,
+          "throughput_edges_sec": 6052.5969745265,
+          "peak_ram_mb": 604.6346130371094
+        },
+        {
+          "seed": 4,
+          "final_train_loss": 0.1337420725160175,
+          "val_mrr": 0.5255615093435804,
+          "test_mrr": 0.4710589683411658,
+          "avg_epoch_sec": 19.755888366699217,
+          "throughput_edges_sec": 5579.703527066315,
+          "peak_ram_mb": 604.6402139663696
         }
       ]
     },
     "stateful": {
-      "mrr_mean": 0.47546797668218616,
-      "mrr_std": 0.021525862463907985,
-      "val_mrr_mean": 0.49055893377268794,
-      "val_mrr_std": 0.02421821086015547,
-      "edges_per_sec": 8709.96650223425,
-      "peak_ram_mb": 588.5219939549764,
+      "mrr_mean": 0.4803711419820827,
+      "mrr_std": 0.036629923117545815,
+      "val_mrr_mean": 0.5019437448120001,
+      "val_mrr_std": 0.02727360905363006,
+      "edges_per_sec": 8991.552309721917,
+      "peak_ram_mb": 588.5427335739136,
       "seeds": [
         {
           "seed": 0,
-          "final_train_loss": 0.29118957342924895,
-          "val_mrr": 0.49097975187608944,
-          "test_mrr": 0.47537315962333937,
-          "avg_epoch_sec": 14.662723938624064,
-          "throughput_edges_sec": 7517.839145128451,
-          "peak_ram_mb": 588.5194778442383
+          "final_train_loss": 0.20859704359813971,
+          "val_mrr": 0.5243605667437422,
+          "test_mrr": 0.5105602305958352,
+          "avg_epoch_sec": 10.747541236877442,
+          "throughput_edges_sec": 10256.48542029009,
+          "peak_ram_mb": 588.5246639251709
         },
         {
           "seed": 1,
-          "final_train_loss": 0.29600003913596823,
-          "val_mrr": 0.46613305608294847,
-          "test_mrr": 0.45398967936698986,
-          "avg_epoch_sec": 14.18313463528951,
-          "throughput_edges_sec": 7772.047776076823,
-          "peak_ram_mb": 588.5243453979492
+          "final_train_loss": 0.2152982387277815,
+          "val_mrr": 0.4576060608653842,
+          "test_mrr": 0.41658642472724067,
+          "avg_epoch_sec": 10.115275001525879,
+          "throughput_edges_sec": 10897.578166028272,
+          "peak_ram_mb": 588.5212755203247
         },
         {
           "seed": 2,
-          "final_train_loss": 0.2883081974254714,
-          "val_mrr": 0.514563993359026,
-          "test_mrr": 0.49704109105622934,
-          "avg_epoch_sec": 10.168991883595785,
-          "throughput_edges_sec": 10840.012585497476,
-          "peak_ram_mb": 588.5221586227417
+          "final_train_loss": 0.20242973996533287,
+          "val_mrr": 0.5244466823543548,
+          "test_mrr": 0.4940914186814779,
+          "avg_epoch_sec": 15.518093633651734,
+          "throughput_edges_sec": 7103.449856814666,
+          "peak_ram_mb": 588.6168756484985
+        },
+        {
+          "seed": 3,
+          "final_train_loss": 0.1953879545132319,
+          "val_mrr": 0.5021543423623119,
+          "test_mrr": 0.49113738408458496,
+          "avg_epoch_sec": 14.748255348205566,
+          "throughput_edges_sec": 7474.239996354011,
+          "peak_ram_mb": 588.5257349014282
+        },
+        {
+          "seed": 4,
+          "final_train_loss": 0.20511483401060104,
+          "val_mrr": 0.5011510717342073,
+          "test_mrr": 0.4894802518212748,
+          "avg_epoch_sec": 11.947962617874145,
+          "throughput_edges_sec": 9226.008109122553,
+          "peak_ram_mb": 588.5251178741455
         }
       ]
     }
