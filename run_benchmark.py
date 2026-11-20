@@ -41,6 +41,7 @@ def run_single_seed_stateless(
     batch_size: int,
     hidden_dim: int,
     device: str,
+    num_negatives: int = 3,
 ) -> Dict[str, float]:
     """Runs Stateless RT-GNN for a single random seed."""
     torch.manual_seed(seed)
@@ -51,6 +52,7 @@ def run_single_seed_stateless(
         data_root=data_root,
         batch_size=batch_size,
         delta_t_mode="event",
+        num_negatives=num_negatives,
         device=device,
         seed=seed,
     )
@@ -111,6 +113,7 @@ def run_single_seed_stateful(
     batch_size: int,
     hidden_dim: int,
     device: str,
+    num_negatives: int = 3,
 ) -> Dict[str, float]:
     """Runs Stateful RT-GNN (Associative Scan) for a single random seed."""
     torch.manual_seed(seed)
@@ -121,6 +124,7 @@ def run_single_seed_stateful(
         data_root=data_root,
         batch_size=batch_size,
         delta_t_mode="event",
+        num_negatives=num_negatives,
         device=device,
         seed=seed,
     )
@@ -130,6 +134,8 @@ def run_single_seed_stateful(
     cfg = RTGNNConfig(
         num_nodes=bundle.num_nodes,
         hidden_dim=hidden_dim,
+        num_layers=1,
+        history_batches=8,
         omega_min=omega_min,
         epochs=epochs,
         device=device,
@@ -197,6 +203,7 @@ def main():
     parser.add_argument("--models", nargs="+", choices=["stateless", "stateful"], default=["stateless", "stateful"])
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4])
     parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--num_negatives", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=2048)
     parser.add_argument("--hidden_dim", type=int, default=64)
     parser.add_argument("--device", type=str, default="cpu")
@@ -246,6 +253,7 @@ def main():
                     batch_size=args.batch_size,
                     hidden_dim=args.hidden_dim,
                     device=args.device,
+                    num_negatives=args.num_negatives,
                 )
             else:
                 res = run_single_seed_stateful(
@@ -256,6 +264,7 @@ def main():
                     batch_size=args.batch_size,
                     hidden_dim=args.hidden_dim,
                     device=args.device,
+                    num_negatives=args.num_negatives,
                 )
             runs.append(res)
             print(f"     Test MRR: {res['test_mrr']:.4f} | Val MRR: {res['val_mrr']:.4f} | Speed: {res['throughput_edges_sec']:.1f} edges/s")

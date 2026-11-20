@@ -199,6 +199,7 @@ def main():
     parser.add_argument("--lr", type=float, default=5e-3)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--num_negatives", type=int, default=3)
     parser.add_argument("--grad_clip", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--seed", type=int, default=0)
@@ -219,6 +220,7 @@ def main():
         dataset_name=args.dataset_name,
         data_root=args.data_root,
         batch_size=args.batch_size,
+        num_negatives=args.num_negatives,
         device=args.device,
         seed=args.seed,
     )

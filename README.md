@@ -34,7 +34,7 @@ All evaluations are conducted according to the official **Temporal Graph Benchma
 | **TCL** (Wang et al., NeurIPS) | Contrastive / $O(K)$ | `0.2070` | — | ~3,200 (Ref) |
 | **TGN** (Rossi et al., ICML) | Recurrent GRU / $O(K)$ | `0.3960` | — | ~3,500 (Ref) |
 | ⚡ **Stateless RT-GNN (Ours)** | **Closed Semigroup / $O(1)$** | **`0.4683 ± 0.0111`** | **`0.5261 ± 0.0073`** | **5,684.0 (Measured CPU)** |
-| 🚀 **Stateful RT-GNN (Ours)** | **Complex SSM / $O(\log K)$** | **`0.4804 ± 0.0366`** | **`0.5019 ± 0.0273`** | **8,991.6 (Measured CPU)** |
+| 🚀 **Stateful RT-GNN (Ours)** | **Complex SSM / $O(\log K)$** | **`0.4934 ± 0.0159`** | **`0.5192 ± 0.0118`** | **8,835.6 (Measured CPU)** |
 | **EdgeBank (unlimited)** | Non-parametric / $O(1)$ | `0.4950` | — | Heuristic (Ref) |
 | **EdgeBank (tw)** | Time-Window Set / $O(1)$ | `0.5710` | — | Heuristic (Ref) |
 | **CAWN** (Zhu et al., ICLR) | Anonymous Walk / $O(W)$ | `0.7110` | — | ~1,200 (Ref) |

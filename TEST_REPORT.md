@@ -1,6 +1,6 @@
 # RT-GNN Implementation Blueprint v2 - Reviewer Verification Report
 
-**Execution Date**: `2026-11-19 12:42:11`  
+**Execution Date**: `2026-11-20 11:21:22`  
 
 **Host Platform**: `Windows 11` (`AMD64`)  
 
@@ -21,7 +21,7 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 | **Passed** | **35** |
 | **Skipped** | **0** |
 | **Failed** | **0** |
-| **Total Execution Time** | **0.284 seconds** |
+| **Total Execution Time** | **0.371 seconds** |
 | **Audit Status** | **PASSED (100% Conformance)** |
 
 ---
@@ -111,9 +111,9 @@ This report certifies the empirical and mathematical conformance of the **Rotati
 
 |---|:---:|:---:|:---:|:---:|:---:|
 
-| **STATELESS RT-GNN** | 5 | **0.4683 ± 0.0111** | 0.5261 ± 0.0073 | 5684.0 | 615.4 |
+| **STATELESS RT-GNN** | 5 | **0.4661 ± 0.0129** | 0.5233 ± 0.0081 | 5214.2 | 615.4 |
 
-| **STATEFUL RT-GNN** | 5 | **0.4804 ± 0.0366** | 0.5019 ± 0.0273 | 8991.6 | 588.5 |
+| **STATEFUL RT-GNN** | 5 | **0.4934 ± 0.0159** | 0.5192 ± 0.0117 | 8835.6 | 599.3 |
 
 
 

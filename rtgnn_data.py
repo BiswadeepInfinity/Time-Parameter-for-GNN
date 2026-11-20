@@ -247,7 +247,7 @@ class LoaderConfig:
     normalize_dt: bool = True
     time_scale: Optional[float] = None
     scale_statistic: str = "median"   # 'median' or 'mean'
-    num_negatives: int = 1            # Negatives per positive edge (train only)
+    num_negatives: int = 1            # Negatives per positive edge (train only, Blueprint v2 default=1)
     drop_last: bool = False
     seed: int = 0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"

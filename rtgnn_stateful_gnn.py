@@ -145,11 +145,16 @@ class StatefulRotationalTemporalGNN(nn.Module):
     ) -> None:
         """Updates persistent node memory after scoring using continuous decay-rotation."""
         with torch.no_grad():
-            x_r, x_i = self.get_node_states()
+            # Sliced active-node representation: normalizes only active interaction nodes
+            # (mathematically equivalent to full-table LayerNorm with zero redundant ops)
+            r_dst = self.norm_real(self.base_emb_real(dst) + self.memory.mem_real[dst])
+            i_dst = self.norm_imag(self.base_emb_imag(dst) + self.memory.mem_imag[dst])
+            r_src = self.norm_real(self.base_emb_real(src) + self.memory.mem_real[src])
+            i_src = self.norm_imag(self.base_emb_imag(src) + self.memory.mem_imag[src])
 
             # Message vectors formed from current interaction representations
-            msg_for_src = torch.cat([x_r[dst], x_i[dst]], dim=-1)
-            msg_for_dst = torch.cat([x_r[src], x_i[src]], dim=-1)
+            msg_for_src = torch.cat([r_dst, i_dst], dim=-1)
+            msg_for_dst = torch.cat([r_src, i_src], dim=-1)
 
             # Continuous decay-rotation jump factors for this batch
             a_src = self.memory.compute_decay_rotation_factor(delta_t_src)
@@ -158,15 +163,60 @@ class StatefulRotationalTemporalGNN(nn.Module):
             b_src = self.memory.project_message(msg_for_src)
             b_dst = self.memory.project_message(msg_for_dst)
 
-            # State update: z <- a * z + b
-            old_z_src = torch.complex(self.memory.mem_real[src], self.memory.mem_imag[src])
-            new_z_src = complex_rms_norm(a_src * old_z_src + b_src)
+            # Concatenate all interaction updates in this batch
+            nodes = torch.cat([src, dst])
+            a = torch.cat([a_src, a_dst])
+            b = torch.cat([b_src, b_dst])
 
-            old_z_dst = torch.complex(self.memory.mem_real[dst], self.memory.mem_imag[dst])
-            new_z_dst = complex_rms_norm(a_dst * old_z_dst + b_dst)
+            # Check if all node appearances are unique
+            num_unique = torch.unique(nodes).size(0)
+            if num_unique == nodes.size(0):
+                old_z = torch.complex(
+                    self.memory.mem_real[nodes], self.memory.mem_imag[nodes]
+                )
+                new_z = complex_rms_norm(a * old_z + b)
+                self.memory.mem_real[nodes] = new_z.real.detach()
+                self.memory.mem_imag[nodes] = new_z.imag.detach()
+            else:
+                # Associative intra-batch compounding for duplicate active nodes:
+                # Groups events by node and applies (a2*a1, a2*b1 + b2) in chronological order
+                perm = torch.argsort(nodes, stable=True)
+                s_nodes = nodes[perm]
+                s_a = a[perm]
+                s_b = b[perm]
 
-            # Detach to ensure state updates maintain O(1) memory bound
-            self.memory.mem_real[src] = new_z_src.real.detach()
-            self.memory.mem_imag[src] = new_z_src.imag.detach()
-            self.memory.mem_real[dst] = new_z_dst.real.detach()
-            self.memory.mem_imag[dst] = new_z_dst.imag.detach()
+                mask = torch.cat([
+                    torch.tensor([True], device=nodes.device),
+                    s_nodes[1:] != s_nodes[:-1],
+                ])
+                unique_nodes = s_nodes[mask]
+
+                idx = torch.arange(len(s_nodes), device=nodes.device)
+                starts = torch.where(mask)[0]
+                group_id = torch.cumsum(mask.long(), dim=0) - 1
+                intra_idx = idx - starts[group_id]
+                max_occurrences = intra_idx.max().item() + 1
+
+                comb_a = s_a[mask].clone()
+                comb_b = s_b[mask].clone()
+
+                for step in range(1, max_occurrences):
+                    step_mask = (intra_idx == step)
+                    if not step_mask.any():
+                        continue
+                    target_u = group_id[step_mask]
+                    step_a = s_a[step_mask]
+                    step_b = s_b[step_mask]
+
+                    cur_a = comb_a[target_u]
+                    cur_b = comb_b[target_u]
+                    comb_a[target_u] = step_a * cur_a
+                    comb_b[target_u] = step_a * cur_b + step_b
+
+                old_z = torch.complex(
+                    self.memory.mem_real[unique_nodes],
+                    self.memory.mem_imag[unique_nodes],
+                )
+                new_z = complex_rms_norm(comb_a * old_z + comb_b)
+                self.memory.mem_real[unique_nodes] = new_z.real.detach()
+                self.memory.mem_imag[unique_nodes] = new_z.imag.detach()

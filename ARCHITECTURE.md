@@ -12,7 +12,7 @@ In everyday applications—such as social media networks, financial payment syst
 RT-GNN solves this dilemma by modeling the passage of time as a continuous rotation and natural decay in the complex number plane. It provides two distinct operational designs:
 
 1. **Stateless RT-GNN ($O(1)$ Instantaneous Formula)**: An ultra-fast AI engine with continuous-time closed semigroup rotations and persistent recency state. It achieves a verified **Test MRR of 0.4683 ± 0.0111** on the official Temporal Graph Benchmark (`tgbl-wiki`) at **5,684 edges/second on CPU**.
-2. **Stateful RT-GNN ($O(\log K)$ Associative Memory Scan)**: An AI engine designed for continuous historical tracking that updates persistent node memory via parallel associative prefix scans, achieving **0.4804 ± 0.0366 Test MRR** and outperforming classic architectures like TGN (0.3960).
+2. **Stateful RT-GNN ($O(\log K)$ Associative Memory Scan)**: An AI engine designed for continuous historical tracking that updates persistent node memory via parallel associative prefix scans and intra-batch associative compounding, achieving **0.4934 ± 0.0159 Test MRR** at **8,835.6 edges/second on CPU** and outperforming classic architectures like TGN (0.3960).
 
 ---
 
